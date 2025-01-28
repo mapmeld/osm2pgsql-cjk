@@ -155,7 +155,7 @@ def main():
                 query = f"UPDATE planet_osm_polygon SET cjk = %s WHERE wikidata IN ({placeholders})"
                 cursor.execute(query, [place['font'], *ways])
                 rows_affected = cursor.rowcount
-                logging.info(f"Updated {rows_affected} polygons]")
+                logging.info(f"Updated {rows_affected} polygons")
 
             conn.commit()
 
