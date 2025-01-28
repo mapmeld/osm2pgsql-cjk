@@ -5,6 +5,8 @@ Goal: CartoCSS can set alternate CJK fonts for some labels in Taiwan, Hong Kong,
 Currently OSM uses Noto Sans CJK font for Japan worldwide. This would add a 'cjk' column to the OSM import
 process, and then use a script to populate it with an alternate font tag, making it available to Carto / Mapnik.
 
+## Option 1: Spatially unaware
+
 We want to know that a label is in Taiwan or Hong Kong without using a bounding box or adding new tags
 
 Current method:
@@ -37,3 +39,189 @@ INFO:root:Updated 359 roads
 INFO:root:Updated 1019 other lines
 INFO:root:Updated 169 polygons
 ```
+
+More WikiData tags:
+- nested P131
+- category Q50256 (districts of Hong Kong)
+- item Q5895100 (Hong Kong timezone)
+- P17 (country)
+- category Q706447 (county of Taiwan)
+- category Q705296 (district of Taiwan)
+- Q712168 (Taiwan timezone)
+
+
+## Option 2: Bounding Box and Filters
+
+If we set a bounding box / geofence around Hong Kong or Taiwan, we then can add filters to avoid changing the font:
+- when there are no Chinese characters
+- when names are specifically Simplified Chinese
+- when names are specifically Japanese
+
+There are about 161 K nodes in Hong Kong with a `name=*` tag:
+
+```
+gis=# select count(*) from planet_osm_point where name is not null;
+ count
+--------
+ 160923
+```
+
+Thousands of nodes (5%) of Hong Kong are tagged with Simplified and/or Traditional Chinese names with `name:zh-Hans` and `name:zh-Hant`.
+I found only a few cases of `name:zh-Hant-HK=*`.
+
+```
+gis=# select count(*) from planet_osm_point WHERE "name:zh-Hans" is not null or "name:zh-Hant" is not null;
+ count
+-------
+  8349
+```
+
+There are many of these nodes where the `name=` value matches the Simplified Chinese.
+In about half of these cases, the name does not match the Traditional Chinese. This could be
+influenced by how the OpenStreetMap tiles and editor UI display characters, but such specific
+tagging could be to reflect real-world naming of the locations.
+
+```
+gis=# select count(*) from planet_osm_point WHERE name = "name:zh-Hans"
+ count
+-------
+  4034
+
+gis=# select count(*) from planet_osm_point WHERE name = "name:zh-Hant";
+ count
+-------
+   606
+
+select count(*) from planet_osm_point
+  WHERE name = "name:zh-Hans"
+  and "name:zh-Hant" is not null
+  and name != "name:zh-Hant";
+count
+-------
+ 1983
+```
+
+Let's query nodes with a bilingual (English / Chinese) label
+
+```
+gis=# select name, "name:zh-Hant" from planet_osm_point where name LIKE '%a%' and "name:zh-Hant" is not null limit 5;
+                                          name                                           |         name:zh-Hant
+-----------------------------------------------------------------------------------------+------------------------------
+ 新城 E2 區 Zona E2 das Novos Aterros Urbanos                                            | 新城 E2 區
+ T18 氹仔客運碼頭公廁 T18 Sanitário público do Terminal Marítimo de Passageiros da Taipa | T18 氹仔客運碼頭
+公廁
+```
+
+By removing Latin-1 characters and spaces from both sides, we can make it easier to figure out if this
+ matches the Simplified or Traditional Chinese name.
+
+```
+SELECT
+  name,
+  "name:zh-Hant",
+  REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') AS reduced_name,
+  REGEXP_REPLACE("name:zh-Hans", '[\x20-\x7E]', '', 'g') AS reduced_hans,
+  REGEXP_REPLACE("name:zh-Hant", '[\x20-\x7E]', '', 'g') AS reduced_hant
+FROM planet_osm_point
+WHERE name != "name:zh-Hant" AND name != "name:zh-Hans"
+  AND ("name:zh-Hant" IS NOT NULL or "name:zh-Hans" IS NOT NULL)
+  AND REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') != ''
+  AND (
+    REGEXP_REPLACE("name:zh-Hant", '[\x20-\xFF]', '', 'g') != '' OR
+    REGEXP_REPLACE("name:zh-Hans", '[\x20-\xFF]', '', 'g') != ''
+  )
+LIMIT 5;
+
+                                          name                                           |         name:zh-Hant         |         reduced_name         |         reduced_hans         |         reduced_hant
+-----------------------------------------------------------------------------------------+------------------------------+------------------------------+------------------------------+------------------------------
+ 新城 E2 區 Zona E2 das Novos Aterros Urbanos                                            | 新城 E2 區                   | 新城區                       | 新城区                       | 新城區
+ T18 氹仔客運碼頭公廁 T18 Sanitário público do Terminal Marítimo de Passageiros da Taipa | T18 氹仔客運碼頭公廁         | 氹仔客運碼頭公廁áúí          | 凼仔客运码头公厕             | 氹仔客運碼頭公廁```
+```
+
+Let's compare the number which match Han Simplified
+
+```
+SELECT COUNT(*) FROM (
+  SELECT REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') AS reduced_name
+  FROM planet_osm_point
+  WHERE REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') = REGEXP_REPLACE("name:zh-Hans", '[\x20-\x7E]', '', 'g')
+    AND REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') != REGEXP_REPLACE("name:zh-Hant", '[\x20-\x7E]', '', 'g')
+) AS results;
+
+count
+-------
+ 1983
+```
+
+And traditional:
+
+```
+SELECT COUNT(*) FROM (
+  SELECT REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') AS reduced_name
+  FROM planet_osm_point
+  WHERE REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') != REGEXP_REPLACE("name:zh-Hans", '[\x20-\x7E]', '', 'g')
+    AND REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') = REGEXP_REPLACE("name:zh-Hant", '[\x20-\x7E]', '', 'g')
+) AS results;
+
+ count
+-------
+  2405
+```
+
+And both:
+
+```
+SELECT COUNT(*) FROM (
+  SELECT REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') AS reduced_name
+  FROM planet_osm_point
+  WHERE REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') = REGEXP_REPLACE("name:zh-Hans", '[\x20-\x7E]', '', 'g')
+    AND REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') = REGEXP_REPLACE("name:zh-Hant", '[\x20-\x7E]', '', 'g')
+) AS results;
+
+ count
+-------
+  1430
+```
+
+The broadest query I would apply would be:
+
+```
+UPDATE planet_osm_point
+SET cjk = 'HK'
+WHERE (
+  /* geo query and */
+  /* has a name */
+  name IS NOT NULL AND
+  /* name contains characters beyond Latin-1 */
+  REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') != '' AND
+  (
+    /* there is no Simplified name */
+    "name:zh-Hans" IS NULL
+    OR
+    /* reduced name matches Traditional (could be matching both) */
+    REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') = REGEXP_REPLACE("name:zh-Hant", '[\x20-\x7E]', '', 'g')
+  )
+);
+```
+
+This query would affect 146 K nodes (90.6% of Hong Kong)
+
+A narrower query might be:
+
+```
+UPDATE planet_osm_point
+SET cjk = 'HK'
+WHERE (
+  /* geo query and */
+  /* has a name */
+  name IS NOT NULL AND
+  /* traditional name was tagged */
+  "name:zh-Hant" IS NOT NULL AND
+  /* name contains characters beyond Latin-1 */
+  REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') != '' AND
+  /* reduced name matches Traditional (could be matching both) */
+  REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') = REGEXP_REPLACE("name:zh-Hant", '[\x20-\x7E]', '', 'g')
+);
+```
+
+This would affect 3.9 K nodes (2.4% of Hong Kong).
