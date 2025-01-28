@@ -85,7 +85,7 @@ gis=# select count(*) from planet_osm_point WHERE "name:zh-Hans" is not null or 
   8349
 ```
 
-There are many of these nodes where the `name=` value matches the Simplified Chinese.
+There are thousands of nodes where the `name=` value matches the Simplified Chinese.
 In about half of these cases, the name does not match the Traditional Chinese. This could be
 influenced by how the OpenStreetMap tiles and editor UI display characters, but such specific
 tagging could be to reflect real-world naming of the locations.
@@ -110,7 +110,19 @@ count
  1983
 ```
 
-Let's query nodes with a bilingual (English / Chinese) label
+At first it seems there are a smaller number of cases with `name` matching `name:zh-Hant`.
+
+```
+select count(*) from planet_osm_point
+  WHERE name = "name:zh-Hant"
+  and "name:zh-Hans" is not null
+  and name != "name:zh-Hans";
+count
+-------
+  102
+```
+
+Let's check nodes with a bilingual (English / Chinese) label
 
 ```
 gis=# select name, "name:zh-Hant" from planet_osm_point where name LIKE '%a%' and "name:zh-Hant" is not null limit 5;
@@ -147,7 +159,7 @@ LIMIT 5;
  T18 氹仔客運碼頭公廁 T18 Sanitário público do Terminal Marítimo de Passageiros da Taipa | T18 氹仔客運碼頭公廁         | 氹仔客運碼頭公廁áúí          | 凼仔客运码头公厕             | 氹仔客運碼頭公廁```
 ```
 
-Let's compare the number which match Han Simplified
+The same count match the Simplified Chinese name:
 
 ```
 SELECT COUNT(*) FROM (
@@ -162,7 +174,7 @@ count
  1983
 ```
 
-And traditional:
+There are more cases using the Traditional Chinese name:
 
 ```
 SELECT COUNT(*) FROM (
@@ -177,7 +189,7 @@ SELECT COUNT(*) FROM (
   2405
 ```
 
-And both:
+Sometimes the name is going to match both Simplified and Traditional:
 
 ```
 SELECT COUNT(*) FROM (
@@ -215,7 +227,7 @@ WHERE (
 
 This query would affect 146 K nodes (90.6% of Hong Kong)
 
-A narrower query might be:
+A narrower query would be:
 
 ```
 UPDATE planet_osm_point
