@@ -66,7 +66,16 @@ gis=# select count(*) from planet_osm_point where name is not null;
  160923
 ```
 
-Thousands of nodes (5%) of Hong Kong are tagged with Simplified and/or Traditional Chinese names with `name:zh-Hans` and `name:zh-Hant`.
+6.6% of `name=*` tagged nodes use only characters from Latin-1.
+
+```
+select count(*) from planet_osm_point WHERE name is not null AND REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') != '';
+ count
+--------
+ 150276
+```
+
+Only 5% of Hong Kong are tagged with Simplified and/or Traditional Chinese names with `name:zh-Hans` and `name:zh-Hant`.
 I found only a few cases of `name:zh-Hant-HK=*`.
 
 ```
@@ -220,8 +229,13 @@ WHERE (
   /* name contains characters beyond Latin-1 */
   REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') != '' AND
   /* reduced name matches Traditional (could be matching both) */
-  REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') = REGEXP_REPLACE("name:zh-Hant", '[\x20-\x7E]', '', 'g')
+  (
+    name = "name:zh-Hant"
+    OR
+    REGEXP_REPLACE(name, '[\x20-\x7E]', '', 'g') = REGEXP_REPLACE("name:zh-Hant", '[\x20-\x7E]', '', 'g')
+  )
 );
 ```
 
-This would affect 3.9 K nodes (2.4% of Hong Kong).
+This would affect 3.9 K nodes (2.4%);
+also 1.5% of roads, and 0.5% of other lines and polygons
