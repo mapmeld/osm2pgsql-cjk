@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Script fills a 'cjk' column in the database if WikiData labels they are in Hong Kong or Taiwan
+# Script fills a 'default_language' column in the database if WikiData labels they are in Hong Kong or Taiwan
 # This addresses an issue with Han unification, where the same codepoint can have a different appearance
 # in mainland China, Japan, Korea, Hong Kong, and Taiwan.
-# CartoCSS can then use the 'cjk' column to set the correct font.
+# CartoCSS can then use the 'default_language' column to set the correct font.
 
 # uses same database args as get-external-data.py
 
@@ -98,20 +98,20 @@ def main():
 
                 placeholders = ', '.join("%s" for _ in place['is_in:zh'])
 
-                query = f"UPDATE planet_osm_point SET cjk = %s WHERE SUBSTR(\"is_in:zh\", 1, 2) IN ({placeholders})"
+                query = f"UPDATE planet_osm_point SET default_language = %s WHERE default_language = NULL AND SUBSTR(\"is_in:zh\", 1, 2) IN ({placeholders})"
                 cursor.execute(query, [place['font'], *place['is_in:zh']])
                 rows_affected = cursor.rowcount
                 logging.info(f"Updated {rows_affected} points")
 
-                query = f"UPDATE planet_osm_roads SET cjk = %s WHERE SUBSTR(\"is_in:zh\", 1, 2) IN ({placeholders})"
+                query = f"UPDATE planet_osm_roads SET default_language = %s WHERE default_language = NULL AND SUBSTR(\"is_in:zh\", 1, 2) IN ({placeholders})"
                 cursor.execute(query, [place['font'], *place['is_in:zh']])
                 rows_affected = cursor.rowcount
                 logging.info(f"Updated {rows_affected} roads")
-                query = f"UPDATE planet_osm_line SET cjk = %s WHERE SUBSTR(\"is_in:zh\", 1, 2) IN ({placeholders})"
+                query = f"UPDATE planet_osm_line SET default_language = %s WHERE default_language = NULL AND SUBSTR(\"is_in:zh\", 1, 2) IN ({placeholders})"
                 cursor.execute(query, [place['font'], *place['is_in:zh']])
                 rows_affected = cursor.rowcount
                 logging.info(f"Updated {rows_affected} other lines")
-                query = f"UPDATE planet_osm_polygon SET cjk = %s WHERE SUBSTR(\"is_in:zh\", 1, 2) IN ({placeholders})"
+                query = f"UPDATE planet_osm_polygon SET default_language = %s WHERE default_language = NULL AND SUBSTR(\"is_in:zh\", 1, 2) IN ({placeholders})"
                 cursor.execute(query, [place['font'], *place['is_in:zh']])
                 rows_affected = cursor.rowcount
                 logging.info(f"Updated {rows_affected} polygons")
@@ -135,7 +135,7 @@ def main():
             logging.info(f'WikiData returned {len(nodes)} nodes')
             if len(nodes) > 0:
                 placeholders = ', '.join("%s" for _ in nodes)
-                query = f"UPDATE planet_osm_point SET cjk = %s WHERE wikidata IN ({placeholders})"
+                query = f"UPDATE planet_osm_point SET default_language = %s WHERE default_language = NULL AND wikidata IN ({placeholders})"
                 cursor.execute(query, [place['font'], *nodes])
                 rows_affected = cursor.rowcount
                 logging.info(f"Updated {rows_affected} points")
@@ -144,15 +144,15 @@ def main():
             ways += relations
             if len(ways) > 0:
                 placeholders = ', '.join("%s" for _ in ways)
-                query = f"UPDATE planet_osm_roads SET cjk = %s WHERE wikidata IN ({placeholders})"
+                query = f"UPDATE planet_osm_roads SET default_language = %s WHERE default_language = NULL AND wikidata IN ({placeholders})"
                 cursor.execute(query, [place['font'], *ways])
                 rows_affected = cursor.rowcount
                 logging.info(f"Updated {rows_affected} roads")
-                query = f"UPDATE planet_osm_line SET cjk = %s WHERE wikidata IN ({placeholders})"
+                query = f"UPDATE planet_osm_line SET default_language = %s WHERE default_language = NULL AND wikidata IN ({placeholders})"
                 cursor.execute(query, [place['font'], *ways])
                 rows_affected = cursor.rowcount
                 logging.info(f"Updated {rows_affected} other lines")
-                query = f"UPDATE planet_osm_polygon SET cjk = %s WHERE wikidata IN ({placeholders})"
+                query = f"UPDATE planet_osm_polygon SET default_language = %s WHERE default_language = NULL AND wikidata IN ({placeholders})"
                 cursor.execute(query, [place['font'], *ways])
                 rows_affected = cursor.rowcount
                 logging.info(f"Updated {rows_affected} polygons")

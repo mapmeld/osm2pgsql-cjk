@@ -2,7 +2,7 @@
 
 Goal: CartoCSS can set alternate CJK fonts for some labels in Taiwan, Hong Kong, and other areas.
 
-Currently OSM uses Noto Sans CJK font for Japan worldwide. This would add a 'cjk' column to the OSM import
+Currently OSM uses Noto Sans CJK font for Japan worldwide. This would add a 'default_language' column to the OSM import
 process, and then use a script to populate it with an alternate font tag, making it available to Carto / Mapnik.
 
 ## Option 1: Spatially unaware
@@ -208,9 +208,10 @@ The broadest query I would apply would be:
 
 ```
 UPDATE planet_osm_point
-SET cjk = 'HK'
+SET default_language = 'zh-HK'
 WHERE (
   /* geo query and */
+  default_language IS NULL AND
   /* has a name */
   name IS NOT NULL AND
   /* name contains characters beyond Latin-1 */
@@ -231,9 +232,10 @@ A narrower query would be:
 
 ```
 UPDATE planet_osm_point
-SET cjk = 'HK'
+SET default_language = 'zh-HK'
 WHERE (
   /* geo query and */
+  default_language IS NULL AND
   /* has a name */
   name IS NOT NULL AND
   /* traditional name was tagged */
